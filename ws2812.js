@@ -21,6 +21,7 @@
     var myMsg = 'not_ready';
     var pixelCount = 0;
     var realPixelCount = 0;
+    var button1 = false;
 
     // General functions.
     function colorLimit(color) {
@@ -44,18 +45,23 @@
         // Onmessage handler to receive the result. The result is the number of pixels,
         // which we will store in a variable.
         window.socket.onmessage = function(message) {
+            message = JSON.parse(message.data);
 
-            // store the number of pixels on the strip.
-            pixelCount = parseInt(message.data);
-            realPixelCount = pixelCount;
+            if (message.name == 'init') {
+                // store the number of pixels on the strip.
+                pixelCount = parseInt(message.value);
+                realPixelCount = pixelCount;
 
-            // change status light from yellow to green.
-            myMsg = 'ready';
-            connected = true;
-            myStatus = 2;
+                // change status light from yellow to green.
+                myMsg = 'ready';
+                connected = true;
+                myStatus = 2;
 
-            // Callback to let Scratch know initialization is complete.
-            callback();
+                // Callback to let Scratch know initialization is complete.
+                callback();
+            } else if (message.name == 'button1') {
+                button1 = message.value;
+            }
         };
 
         window.socket.onclose = function(e) {
@@ -100,6 +106,10 @@
         var msg = "setpixels " + String(red) + " " + String(green) + " " + String(blue);
         window.socket.send(msg);
     };
+
+    ext.button1 = function() {
+        return button1;
+    }
 
     // when the set pixel block is executed
     ext.setPixel = function(pixel, red, green, blue) {
@@ -157,6 +167,10 @@
         pixelCount = 0;
     };
 
+    ext.button1 = function() {
+
+    };
+
     // when the number of pixels reporter block is executed
     ext.getPixelCount = function() {
 
@@ -181,8 +195,8 @@
     var descriptor = {
         blocks: [
             // Block type, block name, function name
-            ["w", 'Connect to WS2801 server on host %s and port %n.', 'cnct', "Host", "Port"],
-            [" ", 'Disconnect from WS2801 server', 'discnct'],
+            ["w", 'Connect to WS2812 server on host %s and port %n.', 'cnct', "Host", "Port"],
+            [" ", 'Disconnect from WS2812 server', 'discnct'],
             [" ", 'Clear All Pixels', 'clearPixels'],
             [" ", 'Set All Pixels to color red %n green %n blue %n', 'setPixels', "0", "0", "0"],
             [" ", 'Set pixel %n to color red %n green %n blue %n', 'setPixel', "0", "0", "0", "0"],
@@ -191,6 +205,7 @@
             [" ", 'Shift pixels %m.direction', 'shiftPixels', "Left"],
             [" ", 'Dim pixels %n', 'dim', "1"],
             [" ", 'Set number of pixels to %n', 'setPixelCount', "8"],
+            ["r", "Is button 1 pressed?", "button1"],
             ["r", 'number of pixels', 'getPixelCount']
         ],
         "menus": {
@@ -198,9 +213,9 @@
             "showstate": ["On", "Off"]
 
         },
-        url: 'https://github.com/ronbuist/ws2801scratch'
+        url: 'https://github.com/willcrichton/ws2812scratch'
     };
 
     // Register the extension
-    ScratchExtensions.register('ws2801', descriptor, ext);
+    ScratchExtensions.register('ws2812', descriptor, ext);
 })({});

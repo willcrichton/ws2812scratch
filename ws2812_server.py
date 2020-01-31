@@ -2,33 +2,33 @@ import asyncio
 import websockets
 import RPi.GPIO as GPIO
 #import time
+import json
 
 # Import the WS2812 module.
 from neopixel import *
+import board
+from pi_io import *
 
 # Configure the count of pixels:
-PIXEL_COUNT    = 75      # Number of pixels
-LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
-LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 10      # DMA channel to use for generating signal (try 10)
-LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
-LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
-LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
-
+N = 16
 # Set the server port
 PORT = 8000
 
 # You can set DEBUG to True to receive logging on standard output.
-#DEBUG = True
-DEBUG = False
+DEBUG = True
+#DEBUG = False
 
 # Some WS2812 strips use GRB for the color order. Set the color order using COLOR_ORDER.
 #COLOR_ORDER = "RGB"
 COLOR_ORDER = "GRB"
 
+pixels = NeoPixel(board.D18, 16)
+
 async def socketHandler(websocket, path):
 
-  pixelCount=PIXEL_COUNT
+  def button_callback(pressed):
+    websocket.send(json.dumps({'name': 'button1', 'value': pressed}))
+  BUTTON1.register_callback(button_callback)
 
   try:
     while True:
@@ -43,29 +43,19 @@ async def socketHandler(websocket, path):
         # Initialize the led strip.
         if DEBUG:
           print(">> Initializing WS2812 strip...")
-        pixels = Adafruit_NeoPixel(PIXEL_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
-        pixels.begin()
 
         # Clear all the pixels to turn them off.
         if DEBUG:
-          print(">> Clearing all", PIXEL_COUNT, "pixels...")
-        for pix in range(pixels.numPixels()):
-          pixels.setPixelColor(pix,0)
-        pixels.show()  # Make sure to call show() after changing any pixels!
-
-        # By default, we will automatically show what was sent. This can be overridden with the autoshow command.
-        autoShow = True
+          print(">> Clearing all", N, "pixels...")
+        pixels.fill((0, 0, 0))
 
         # The init command replies with the number of pixels on the strip.
-        await websocket.send(str(pixels.numPixels()))
+        await websocket.send(json.dumps({'name': 'init', 'value': str(N)}))
 
       elif command == "clear":
         if DEBUG:
           print(">> Handling clear command")
-        for pix in range(pixels.numPixels()):
-          pixels.setPixelColor(pix,0)
-        if autoShow:
-          pixels.show()
+        pixels.fill((0, 0, 0))
 
       elif command == "setpixel":
         if DEBUG:
@@ -74,9 +64,9 @@ async def socketHandler(websocket, path):
         red = int(cmdList.pop(0))
         green = int(cmdList.pop(0))
         blue = int(cmdList.pop(0))
-        if pixelCount < PIXEL_COUNT:
+        if pixelCount < N:
           # Handle virtual split into multiple strips
-          while pix < PIXEL_COUNT:
+          while pix < N:
             if COLOR_ORDER == "RGB":
               pixels.setPixelColorRGB(pix, red, green, blue)
             else:
@@ -96,13 +86,8 @@ async def socketHandler(websocket, path):
         red = int(cmdList.pop(0))
         green = int(cmdList.pop(0))
         blue = int(cmdList.pop(0))
-        for pix in range(pixels.numPixels()):
-          if COLOR_ORDER == "RGB":
-            pixels.setPixelColorRGB(pix, red, green,blue)
-          else:
-            pixels.setPixelColorRGB(pix, green, red, blue)
-        if autoShow:
-          pixels.show()
+        for pix in range(N):
+            pixels[pix] = (red, green, blue)
 
       elif command == "shift":
         if DEBUG:
@@ -112,38 +97,38 @@ async def socketHandler(websocket, path):
           if DEBUG:
             print(">> Shifting left...")
           leftmostPixelColor = pixels.getPixelColor(0)
-          if pixelCount < PIXEL_COUNT:
+          if pixelCount < N:
             if DEBUG:
-              print(">>Handling virtual pixels for", pixelCount, "virtual pixels over",PIXEL_COUNT,"real pixels")
-            nrIterations = PIXEL_COUNT // pixelCount
+              print(">>Handling virtual pixels for", pixelCount, "virtual pixels over",N,"real pixels")
+            nrIterations = N // pixelCount
             for i in range(0, nrIterations):
               for pix in range(1, pixelCount):
                 color = pixels.getPixelColor(i*pixelCount+pix)
                 pixels.setPixelColor(i*pixelCount+pix-1,color)
               pixels.setPixelColor((i+1)*pixelCount-1,leftmostPixelColor)
-            if PIXEL_COUNT % pixelCount > 0:
+            if N % pixelCount > 0:
               i = 0
-              for pix in range(nrIterations*pixelCount,PIXEL_COUNT):
+              for pix in range(nrIterations*pixelCount,N):
                 color = pixels.getPixelColor(i)
                 pixels.setPixelColor(pix,color)
                 i = i + 1
           else:
-            for pix in range(1, pixels.numPixels()):
+            for pix in range(1, N):
               color = pixels.getPixelColor(pix)
               pixels.setPixelColor(pix-1,color)
-            pixels.setPixelColor(pixels.numPixels()-1,leftmostPixelColor)
+            pixels.setPixelColor(N-1,leftmostPixelColor)
           if autoShow:
             pixels.show()
         elif direction == "right":
           if DEBUG:
             print(">> Shifting right...")
           rightmostPixelColor = pixels.getPixelColor(pixelCount-1)
-          if pixelCount < PIXEL_COUNT:
+          if pixelCount < N:
             if DEBUG:
-              print(">>Handling virtual pixels for", pixelCount, "virtual pixels over",PIXEL_COUNT,"real pixels")
-            nrIterations = PIXEL_COUNT // pixelCount
-            if PIXEL_COUNT % pixelCount > 0:
-              for pix in reversed(range(nrIterations*pixelCount,PIXEL_COUNT)):
+              print(">>Handling virtual pixels for", pixelCount, "virtual pixels over",N,"real pixels")
+            nrIterations = N // pixelCount
+            if N % pixelCount > 0:
+              for pix in reversed(range(nrIterations*pixelCount,N)):
                 color = pixels.getPixelColor(pix-1)
                 pixels.setPixelColor(pix,color)
             for i in range(0, nrIterations):
@@ -152,7 +137,7 @@ async def socketHandler(websocket, path):
                 pixels.setPixelColor(i*pixelCount+pix,color)
               pixels.setPixelColor(i*pixelCount,rightmostPixelColor)
           else:
-            for pix in reversed(range(1,pixels.numPixels())):
+            for pix in reversed(range(1,N)):
               color = pixels.getPixelColor(pix-1)
               pixels.setPixelColor(pix,color)
             pixels.setPixelColor(0,rightmostPixelColor)
@@ -165,7 +150,7 @@ async def socketHandler(websocket, path):
         if DEBUG:
           print(">> Handling dim command")
         step = int(cmdList.pop(0))
-        for i in range(pixels.numPixels()):
+        for i in range(N):
           color = pixels.getPixelColor(i)
           red = (color >> 16) & 0xFF
           green = (color >> 8) & 0xFF
@@ -194,12 +179,6 @@ async def socketHandler(websocket, path):
         if DEBUG:
           print(">> Handling show command")
         pixels.show()
-
-      elif command == "getpixelcount":
-        if DEBUG:
-          print(">> Handling getpixelcount command")
-          print(">> Returning pixel count", pixels.numPixels())
-        await websocket.send(str(pixels.numPixels()))
 
       elif command == "setVirtualPixels":
         if DEBUG:
