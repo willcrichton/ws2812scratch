@@ -1,7 +1,7 @@
 import asyncio
 import websockets
 import RPi.GPIO as GPIO
-#import time
+import time
 import json
 
 # Import the WS2812 module.
@@ -15,8 +15,8 @@ N = 16
 PORT = 8000
 
 # You can set DEBUG to True to receive logging on standard output.
-DEBUG = True
-#DEBUG = False
+#DEBUG = True
+DEBUG = False
 
 # Some WS2812 strips use GRB for the color order. Set the color order using COLOR_ORDER.
 #COLOR_ORDER = "RGB"
@@ -25,10 +25,13 @@ COLOR_ORDER = "GRB"
 pixels = NeoPixel(board.D18, 16)
 
 async def socketHandler(websocket, path):
-
-  def button_callback(pressed):
-    websocket.send(json.dumps({'name': 'button1', 'value': pressed}))
+  async def button_callback(pressed):
+    await websocket.send(json.dumps({'name': 'button1', 'value': pressed}))
   BUTTON1.register_callback(button_callback)
+
+  async def rotary_callback(counter):
+    await websocket.send(json.dumps({'name': 'rotary1', 'value': counter}))
+  ROTARY1.register_callback(rotary_callback)
 
   try:
     while True:
@@ -64,21 +67,7 @@ async def socketHandler(websocket, path):
         red = int(cmdList.pop(0))
         green = int(cmdList.pop(0))
         blue = int(cmdList.pop(0))
-        if pixelCount < N:
-          # Handle virtual split into multiple strips
-          while pix < N:
-            if COLOR_ORDER == "RGB":
-              pixels.setPixelColorRGB(pix, red, green, blue)
-            else:
-              pixels.setPixelColorRGB(pix, green, red, blue)
-            pix = pix + pixelCount
-        else:
-          if COLOR_ORDER == "RGB":
-            pixels.setPixelColorRGB(pix, red, green,blue)
-          else:
-            pixels.setPixelColorRGB(pix, green, red, blue)
-        if autoShow:
-          pixels.show()
+        pixels[pix % N] = (red, green, blue)
 
       elif command == "setpixels":
         if DEBUG:
@@ -196,9 +185,17 @@ async def socketHandler(websocket, path):
     print("> Unknown exception encountered.")
     raise
 
+async def watch_io():
+  while True:
+    for d in DEVICES:
+      d.watch()
+    await asyncio.sleep(0.05)
+
 print("WS2812 server starting...")
 start_server = websockets.serve(socketHandler, '0.0.0.0', PORT)
 
 print("> Websocket initialized. Now entering main loop...")
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+loop = asyncio.get_event_loop()
+loop.run_until_complete(start_server)
+loop.create_task(watch_io())
+loop.run_forever()
