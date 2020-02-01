@@ -26,7 +26,7 @@ class Button(IO):
         super().__init__()
         self.pin = pin
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self.on_event, bouncetime=30)
+        GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self.on_event, bouncetime=10)
 
     def on_event(self, _):
         self.run_callback(GPIO.input(self.pin) == 1)
@@ -39,6 +39,10 @@ class Rotary(IO):
         
     def on_event(self, counter):
         self.run_callback(counter)
+
+    def reset(self):
+        self.rotary.last_counter = 0
+        self.rotary.counter = 0
 
     def watch(self):
         if self.rotary.counter != self.rotary.last_counter:

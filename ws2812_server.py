@@ -10,13 +10,13 @@ import board
 from pi_io import *
 
 # Configure the count of pixels:
-N = 16
+N = 8
 # Set the server port
 PORT = 8000
 
 # You can set DEBUG to True to receive logging on standard output.
-#DEBUG = True
-DEBUG = False
+DEBUG = True
+#DEBUG = False
 
 # Some WS2812 strips use GRB for the color order. Set the color order using COLOR_ORDER.
 #COLOR_ORDER = "RGB"
@@ -51,6 +51,8 @@ async def socketHandler(websocket, path):
         if DEBUG:
           print(">> Clearing all", N, "pixels...")
         pixels.fill((0, 0, 0))
+        
+        ROTARY1.reset()
 
         # The init command replies with the number of pixels on the strip.
         await websocket.send(json.dumps({'name': 'init', 'value': str(N)}))
