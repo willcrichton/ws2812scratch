@@ -8,14 +8,15 @@ import colorString from 'color-string';
 window.colorString = colorString;
 
 const DEBUG = true;
-const rpi = new WebSocket('ws://10.24.7.84:8000');
+const rpi = new WebSocket('ws://172.20.10.4:8000');
 
 let NUM_PIXELS;
 let ROTARY = 0;
 let BUTTON = false;
-
+let _last_button = false;
 rpi.addEventListener('open', () => {
-  console.log('Socket opened');
+  console.log('Open');
+  rpi.send('init');
 });
 
 rpi.addEventListener('message', (event) => {
@@ -27,12 +28,53 @@ rpi.addEventListener('message', (event) => {
     NUM_PIXELS = parseInt(message.value);
   } else if (message.name === 'button1') {
     BUTTON = message.value;
-    LightOnButtonPress.callbacks.map((cb) => cb());
+    if (BUTTON && !_last_button) {
+      console.log(LightOnButtonPress.callbacks);
+      LightOnButtonPress.callbacks.map((cb) => cb());
+    }
+    _last_button = BUTTON;
   } else if (message.name === 'rotary1') {
     ROTARY = message.value;
     LightOnDialChange.callbacks.map((cb) => cb());
   }
 });
+
+window.KillProg = false;
+
+Blockly.Blocks['controls_forever'] = {init: function() {
+  this.jsonInit({
+    message0: 'forever',
+    args1: [{type: 'input_statement', name: 'body'}],
+    message1: 'do %1',
+    style: "loop_blocks",
+    previousStatement: true
+  });
+}};
+
+JavaScript['controls_forever'] = function(block) {
+  return `function _forever() {
+    ${JavaScript.statementToCode(block, 'body')}
+    if (!window.KillProg) {
+      setTimeout(_forever, 5);
+    }
+  }
+  _forever()`;
+};
+
+Blockly.Blocks['number_to_index'] = {init: function() {
+  this.jsonInit({
+    message0: 'convert number %1',
+    args0: [{type: 'input_value', name: 'number', check: 'Number'}],
+    message1: 'to index of list length %1',
+    args1: [{type: 'input_value', name: 'length', check: 'Number'}],
+    output: 'Number'
+  });
+}};
+
+JavaScript['number_to_index'] = function(block) {
+  return [`(${JavaScript.valueToCode(block, 'number', JavaScript.ORDER_COMMA)}-1)%${JavaScript.valueToCode(block, 'length', JavaScript.ORDER_COMMA)}+1`,
+          JavaScript.ORDER_NONE];
+};
 
 class Block {
   static codegen(block) {
@@ -46,7 +88,7 @@ class Block {
         return expr_str;
       })
       .join(',');
-    const code = `${this.name}.execute(${arg_str})`;
+    const code = `await ${this.name}.execute(${arg_str})`;
     if (this.config.output) {
       return [code, JavaScript.ORDER_NONE];
     } else {
@@ -67,7 +109,7 @@ class Block {
 class CallbackBlock extends Block {
   static codegen(block) {
     return `
-${this.name}.register_callback(function() {
+${this.name}.register_callback(async function() {
   ${JavaScript.statementToCode(block, 'body')}
 });
     `;
@@ -80,13 +122,12 @@ ${this.name}.register_callback(function() {
 
 class LightInit extends Block {
   static config = {
-    message0: 'initialize lights',
-    nextStatement: true
+    message0: 'initialize lights %1',
+    args0: [{type: 'input_statement', name: 'body'}]
   }
 
-  static execute() {
-    console.log('initialize lights');
-    rpi.send('init');
+  static codegen(block) {
+    return `(async function() { ${JavaScript.statementToCode(block, 'body')} })()`;
   }
 }
 
@@ -101,9 +142,9 @@ class LightSetPixel extends Block {
     previousStatement: true
   }
 
-  static execute(pixel, color) {
-    console.log('SetPixel', pixel, color);
-    rpi.send(`setpixel ${pixel} ${color[0]} ${color[1]} ${color[2]}`);
+  static async execute(pixel, color) {
+    //console.log('SetPixel', pixel, color);
+    rpi.send(`setpixel ${pixel-1} ${color[0]} ${color[1]} ${color[2]}`);
   }
 }
 
@@ -117,8 +158,8 @@ class LightSetAllPixels extends Block {
     previousStatement: true
   }
 
-  static execute(color) {
-    console.log('SetAllPixels', color);
+  static async execute(color) {
+    //console.log('SetAllPixels', color);
     rpi.send(`setpixels ${color[0]} ${color[1]} ${color[2]}`);
   }
 }
@@ -129,8 +170,8 @@ class LightGetNumberPixels extends Block {
     output: 'Number'
   }
 
-  static execute() {
-    console.log('GetNumberPixels');
+  static async execute() {
+    //console.log('GetNumberPixels');
     return NUM_PIXELS;
   }
 }
@@ -141,9 +182,8 @@ class LightGetDial extends Block {
     output: 'Number'
   }
 
-  static execute() {
-    console.log('GetDial');
-    return DIAL;
+  static async execute() {
+    return ROTARY;
   }
 }
 
@@ -153,11 +193,30 @@ class LightGetButton extends Block {
     output: 'Boolean'
   }
 
-  static execute() {
+  static async execute() {
     console.log('GetButton');
     return BUTTON;
   }
 }
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+class Sleep extends Block {
+  static config = {
+    previousStatement: true,
+    nextStatement: true,
+    message0: 'sleep for %1 seconds',
+    args0: [{type: 'input_value', name: 'time', check: 'Number'}]
+  }
+
+
+  static async execute(time) {
+    await sleep(time * 1000);
+  }
+}
+
 
 class LightOnButtonPress extends CallbackBlock {
   static callbacks = []
@@ -180,10 +239,12 @@ class LightOnDialChange extends CallbackBlock {
   }
 }
 
-const CLASSES = [LightInit, LightSetPixel, LightSetAllPixels, LightGetNumberPixels, LightGetDial, LightGetButton, LightOnButtonPress, LightOnDialChange];
+const CLASSES = [LightInit, LightSetPixel, LightSetAllPixels, LightGetNumberPixels, LightGetDial, LightGetButton, LightOnButtonPress, LightOnDialChange, Sleep];
 CLASSES.forEach((cls) => cls.register());
 
 class App extends React.Component {
+  state = {running: false}
+
   constructor(props) {
     super(props);
     this.blockly = React.createRef();
@@ -232,11 +293,23 @@ class App extends React.Component {
   run() {
     const code = JavaScript.workspaceToCode(this.workspace);
     console.log(code);
+
+    window.KillProg = false;
+
+    this.setState({running: true});
+
     try {
       eval(code);
     } catch (e) {
       window.alert(`Failed with error:\n${e.stack}`);
     }
+
+
+    this.setState({running: false});
+  }
+
+  stop() {
+    window.KillProg = true;
   }
 
   load() {
@@ -254,12 +327,13 @@ class App extends React.Component {
     window.URL.revokeObjectURL(url);
   }
 
-
   render() {
     return <div className='app'>
       <h1>Johnny's Light Maker</h1>
       <div className='buttons'>
-        <button className='run' onClick={() => this.run()}>Run program</button>
+        {!this.state.running
+        ? <button className='run' onClick={() => this.run()}>Run program</button>
+        : <button className='stop' onClick={() => this.stop()}>Stop program</button>}
         <button onClick={() => this.save()}>Save program</button>
         <a style={{display: 'none'}} ref={this.save_link} />
         <button onClick={() => this.load()}>Load program</button>
@@ -273,12 +347,14 @@ class App extends React.Component {
           <block type="controls_for"></block>
           <block type="controls_forEach"></block>
           <block type="controls_repeat_ext"></block>
+          <block type="controls_forever"></block>
         </category>
         <category name="Math">
           <block type="logic_compare"></block>
           <block type="math_number"></block>
           <block type="math_arithmetic"></block>
           <block type="math_modulo"></block>
+          <block type="number_to_index"></block>
         </category>
         <category name="Text">
           <block type="text"></block>

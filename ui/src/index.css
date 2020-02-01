@@ -33,3 +33,7 @@ code {
 .buttons button.run {
     background: #bee7c7;
 }
+
+.buttons button.stop {
+    background: red;
+}
