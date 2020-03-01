@@ -8,36 +8,13 @@ import colorString from 'color-string';
 window.colorString = colorString;
 
 const DEBUG = true;
-const rpi = new WebSocket('ws://172.20.10.4:8000');
 
 let NUM_PIXELS;
 let ROTARY = 0;
 let BUTTON = false;
 let _last_button = false;
-rpi.addEventListener('open', () => {
-  console.log('Open');
-  rpi.send('init');
-});
 
-rpi.addEventListener('message', (event) => {
-  const message = JSON.parse(event.data);
-  if (DEBUG) {
-    console.log('Received message', message);
-  }
-  if (message.name === 'init') {
-    NUM_PIXELS = parseInt(message.value);
-  } else if (message.name === 'button1') {
-    BUTTON = message.value;
-    if (BUTTON && !_last_button) {
-      console.log(LightOnButtonPress.callbacks);
-      LightOnButtonPress.callbacks.map((cb) => cb());
-    }
-    _last_button = BUTTON;
-  } else if (message.name === 'rotary1') {
-    ROTARY = message.value;
-    LightOnDialChange.callbacks.map((cb) => cb());
-  }
-});
+let rpi;
 
 window.KillProg = false;
 
@@ -242,7 +219,7 @@ class LightOnDialChange extends CallbackBlock {
 const CLASSES = [LightInit, LightSetPixel, LightSetAllPixels, LightGetNumberPixels, LightGetDial, LightGetButton, LightOnButtonPress, LightOnDialChange, Sleep];
 CLASSES.forEach((cls) => cls.register());
 
-class App extends React.Component {
+class Coder extends React.Component {
   state = {running: false}
 
   constructor(props) {
@@ -328,12 +305,11 @@ class App extends React.Component {
   }
 
   render() {
-    return <div className='app'>
-      <h1>Johnny's Light Maker</h1>
+    return <div className='coder'>
       <div className='buttons'>
         {!this.state.running
-        ? <button className='run' onClick={() => this.run()}>Run program</button>
-        : <button className='stop' onClick={() => this.stop()}>Stop program</button>}
+          ? <button className='run' onClick={() => this.run()}>Run program</button>
+          : <button className='stop' onClick={() => this.stop()}>Stop program</button>}
         <button onClick={() => this.save()}>Save program</button>
         <a style={{display: 'none'}} ref={this.save_link} />
         <button onClick={() => this.load()}>Load program</button>
@@ -377,6 +353,77 @@ class App extends React.Component {
         <category name="Variables" custom="VARIABLE"></category>
         <category name="Functions" custom="PROCEDURE"></category>
       </xml>
+    </div>;
+  }
+}
+
+class App extends React.Component {
+  state = {loaded: false, error: false}
+
+  constructor(props) {
+    super(props);
+    rpi = new WebSocket('ws://raspberrypi.local:8000');
+
+    /*rpi.onerror = (event) => {
+      console.error(event);
+    };*/
+
+    rpi.onclose = (event) => {
+      this.setState({error: true});
+    };
+
+    rpi.addEventListener('open', () => {
+      console.log('Open');
+      this.setState({loaded: true});
+      rpi.send('init');
+    });
+
+    rpi.addEventListener('message', (event) => {
+      const message = JSON.parse(event.data);
+      if (DEBUG) {
+        console.log('Received message', message);
+      }
+      if (message.name === 'init') {
+        NUM_PIXELS = parseInt(message.value);
+      } else if (message.name === 'button1') {
+        BUTTON = message.value;
+        if (BUTTON && !_last_button) {
+          console.log(LightOnButtonPress.callbacks);
+          LightOnButtonPress.callbacks.map((cb) => cb());
+        }
+        _last_button = BUTTON;
+      } else if (message.name === 'rotary1') {
+        ROTARY = message.value;
+        LightOnDialChange.callbacks.map((cb) => cb());
+      }
+    });
+  }
+
+  render() {
+    return <div className='app'>
+      <h1>Light Maker</h1>
+      {this.state.error
+        ? <div>I wasn't able to connect to the Light Block. A few things to check:
+          <ul>
+            <li><strong>Power problems:</strong>
+              <ul><li>Make sure the Light Block is plugged in.</li>
+                <li>Open the top and make sure the Raspberry Pi has a red light turned on.</li>
+              </ul></li>
+            <li><strong>Network problems:</strong><br />
+              To see if you have a network problem, from the terminal, run:
+              <pre>ping raspberrypi.local</pre>
+              If you get the response:
+              <pre>ping: cannot resolve raspberrypi.local: Unknown host</pre>
+       then the Raspberry Pi isn't connected to the same network as your computer.
+           <ul>
+             <li>Make sure your computer is on the same Wifi as the one you set up on the Pi.</li>
+             <li>At this point, you will need to manually configure Wifi on the Raspberry Pi. Plug a monitor into the HDMI port and a mouse/keyboard into the USB ports. <a href="https://www.raspberrypi.org/documentation/configuration/wireless/desktop.md">Follow the directions here</a> to setup the Pi's Wifi.</li>
+           </ul></li>
+          </ul>
+        </div>
+        : (this.state.loaded
+          ? <Coder />
+          : <span>Waiting to connect to the Light Block...</span>)}
     </div>;
   }
 }
