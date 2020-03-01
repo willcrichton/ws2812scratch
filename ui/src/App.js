@@ -1,5 +1,4 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
 import Blockly from 'blockly';
 import JavaScript from 'blockly/javascript';
@@ -65,7 +64,7 @@ class Block {
         return expr_str;
       })
       .join(',');
-    const code = `await ${this.name}.execute(${arg_str})`;
+    const code = `await ${this.name()}.execute(${arg_str})`;
     if (this.config.output) {
       return [code, JavaScript.ORDER_NONE];
     } else {
@@ -74,11 +73,11 @@ class Block {
   };
 
   static register() {
-    const cls = this.name;
+    const cls = this.name();
     const config = this.config;
     Blockly.Blocks[cls] = {init: function() { this.jsonInit(config); }};
     JavaScript[cls] = (block) => { return this.codegen(block); }
-    window.cls = this;
+    window[cls] = this;
   }
 }
 
@@ -86,7 +85,7 @@ class Block {
 class CallbackBlock extends Block {
   static codegen(block) {
     return `
-${this.name}.register_callback(async function() {
+${this.name()}.register_callback(async function() {
   ${JavaScript.statementToCode(block, 'body')}
 });
     `;
@@ -103,8 +102,14 @@ class LightInit extends Block {
     args0: [{type: 'input_statement', name: 'body'}]
   }
 
+  static name() { return 'LightInit'; }
+
   static codegen(block) {
-    return `(async function() { ${JavaScript.statementToCode(block, 'body')} })()`;
+    return `(async function() {
+  ${JavaScript.statementToCode(block, 'body')}
+})().catch(function(err) {
+  window.alert("The program encountered an error. Make sure you didn't leave out any missing blocks. The specific error was: " + err.message);
+})`;
   }
 }
 
@@ -118,6 +123,8 @@ class LightSetPixel extends Block {
     nextStatement: true,
     previousStatement: true
   }
+
+  static name() { return 'LightSetPixel'; }
 
   static async execute(pixel, color) {
     //console.log('SetPixel', pixel, color);
@@ -135,8 +142,9 @@ class LightSetAllPixels extends Block {
     previousStatement: true
   }
 
+  static name() { return 'LightSetAllPixels'; }
+
   static async execute(color) {
-    //console.log('SetAllPixels', color);
     rpi.send(`setpixels ${color[0]} ${color[1]} ${color[2]}`);
   }
 }
@@ -147,8 +155,9 @@ class LightGetNumberPixels extends Block {
     output: 'Number'
   }
 
+  static name() { return 'LightGetNumberPixels'; }
+
   static async execute() {
-    //console.log('GetNumberPixels');
     return NUM_PIXELS;
   }
 }
@@ -158,6 +167,8 @@ class LightGetDial extends Block {
     message0: 'dial value',
     output: 'Number'
   }
+
+  static name() { return 'LightGetDial'; }
 
   static async execute() {
     return ROTARY;
@@ -169,6 +180,8 @@ class LightGetButton extends Block {
     message0: 'is button pressed?',
     output: 'Boolean'
   }
+
+  static name() { return 'LightGetButton'; }
 
   static async execute() {
     console.log('GetButton');
@@ -188,6 +201,7 @@ class Sleep extends Block {
     args0: [{type: 'input_value', name: 'time', check: 'Number'}]
   }
 
+  static name() { return 'Sleep'; }
 
   static async execute(time) {
     await sleep(time * 1000);
@@ -197,6 +211,8 @@ class Sleep extends Block {
 
 class LightOnButtonPress extends CallbackBlock {
   static callbacks = []
+
+  static name() { return 'LightOnButtonPress'; }
 
   static config = {
     message0: 'When button is pressed',
@@ -208,6 +224,8 @@ class LightOnButtonPress extends CallbackBlock {
 
 class LightOnDialChange extends CallbackBlock {
   static callbacks = []
+
+  static name() { return 'LightOnDialChange'; }
 
   static config = {
     message0: 'When dial is turned',
@@ -268,19 +286,39 @@ class Coder extends React.Component {
   }
 
   run() {
-    const code = JavaScript.workspaceToCode(this.workspace);
-    console.log(code);
+    JavaScript.init(this.workspace);
+    const blocks = this.workspace.getTopBlocks();
+
+    let found_init = false;
+    let code = '';
+    for (let block of blocks) {
+      if (['LightInit', 'LightOnButtonPress', 'LightOnDialChange'].indexOf(block.type) >= 0) {
+        if (block.type == 'LightInit') {
+          if (found_init) {
+            window.alert("You can only have one 'initialize lights' block in your workspace. Please delete the others.");
+            return;
+          }
+          found_init = true;
+        }
+
+        code += JavaScript.blockToCode(block) + '\n';
+      }
+    }
+
+    if (!found_init) {
+      window.alert("You must have exactly one 'initialize lights' block, and put your program inside of it.");
+      return;
+    }
+
+    code = JavaScript.finish(code);
 
     window.KillProg = false;
 
     this.setState({running: true});
 
-    try {
-      eval(code);
-    } catch (e) {
-      window.alert(`Failed with error:\n${e.stack}`);
-    }
+    console.log(code);
 
+    eval(code);
 
     this.setState({running: false});
   }
@@ -304,7 +342,22 @@ class Coder extends React.Component {
     window.URL.revokeObjectURL(url);
   }
 
+  on_select_example(file) {
+    let req = new XMLHttpRequest();
+    req.addEventListener('load', (resp) => {
+      const xml = req.response;
+      this.codeFromString(xml);
+    });
+    req.open('GET', file);
+    req.send();
+  }
+
   render() {
+    const examples = [
+      {name: "Rainbow", file: "examples/rainbow.xml"},
+      {name: "Dial", file: "examples/dial.xml"},
+      {name: "Button", file: "examples/button.xml"}
+    ];
     return <div className='coder'>
       <div className='buttons'>
         {!this.state.running
@@ -313,6 +366,10 @@ class Coder extends React.Component {
         <button onClick={() => this.save()}>Save program</button>
         <a style={{display: 'none'}} ref={this.save_link} />
         <button onClick={() => this.load()}>Load program</button>
+        <select onChange={(e) => this.on_select_example(e.target.value)}>
+          <option>Load an example program...</option>
+          {examples.map((ex) => <option key={ex.name} value={ex.file}>{ex.name}</option>)}
+        </select>
         <input style={{display: 'none'}} ref={this.load_input} type='file' />
       </div>
       <div className='blockly' ref={this.blockly} />
@@ -337,7 +394,7 @@ class Coder extends React.Component {
           <block type="text_print"></block>
         </category>
         <category name="Light">
-          {CLASSES.map((cls) => <block type={cls.name} />)}
+          {CLASSES.map((cls) => <block type={cls.name()} />)}
         </category>
         <category name="Color">
           <block type="colour_picker"></block>
@@ -363,10 +420,6 @@ class App extends React.Component {
   constructor(props) {
     super(props);
     rpi = new WebSocket('ws://raspberrypi.local:8000');
-
-    /*rpi.onerror = (event) => {
-      console.error(event);
-    };*/
 
     rpi.onclose = (event) => {
       this.setState({error: true});
