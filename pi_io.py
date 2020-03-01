@@ -29,6 +29,7 @@ class Button(IO):
         GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self.on_event, bouncetime=10)
 
     def on_event(self, _):
+        sleep(0.01) # if we don't wait before reading pin, might read a 1 after button is released
         self.run_callback(GPIO.input(self.pin) == 1)
 
 class Rotary(IO):

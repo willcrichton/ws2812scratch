@@ -10,19 +10,15 @@ import board
 from pi_io import *
 
 # Configure the count of pixels:
-N = 8
+N = 32
 # Set the server port
 PORT = 8000
 
 # You can set DEBUG to True to receive logging on standard output.
-DEBUG = True
-#DEBUG = False
+#DEBUG = True
+DEBUG = False
 
-# Some WS2812 strips use GRB for the color order. Set the color order using COLOR_ORDER.
-#COLOR_ORDER = "RGB"
-COLOR_ORDER = "GRB"
-
-pixels = NeoPixel(board.D18, 16)
+pixels = NeoPixel(board.D18, N)
 
 async def socketHandler(websocket, path):
   async def button_callback(pressed):
