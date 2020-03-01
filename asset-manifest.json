@@ -1,23 +1,22 @@
 {
   "files": {
-    "main.css": "/ws2812scratch/static/css/main.f1a079f4.chunk.css",
-    "main.js": "/ws2812scratch/static/js/main.be0f5c8c.chunk.js",
-    "main.js.map": "/ws2812scratch/static/js/main.be0f5c8c.chunk.js.map",
-    "runtime-main.js": "/ws2812scratch/static/js/runtime-main.54d898d4.js",
-    "runtime-main.js.map": "/ws2812scratch/static/js/runtime-main.54d898d4.js.map",
-    "static/js/2.07fc9f4e.chunk.js": "/ws2812scratch/static/js/2.07fc9f4e.chunk.js",
-    "static/js/2.07fc9f4e.chunk.js.map": "/ws2812scratch/static/js/2.07fc9f4e.chunk.js.map",
-    "index.html": "/ws2812scratch/index.html",
-    "precache-manifest.abbca9ec875d3ed2df70e1743bd90f7e.js": "/ws2812scratch/precache-manifest.abbca9ec875d3ed2df70e1743bd90f7e.js",
-    "service-worker.js": "/ws2812scratch/service-worker.js",
-    "static/css/main.f1a079f4.chunk.css.map": "/ws2812scratch/static/css/main.f1a079f4.chunk.css.map",
-    "static/js/2.07fc9f4e.chunk.js.LICENSE.txt": "/ws2812scratch/static/js/2.07fc9f4e.chunk.js.LICENSE.txt",
-    "static/media/logo.svg": "/ws2812scratch/static/media/logo.5d5d9eef.svg"
+    "main.css": "./ws2812scratch/static/css/main.f1a079f4.chunk.css",
+    "main.js": "./ws2812scratch/static/js/main.b3c5e0fa.chunk.js",
+    "main.js.map": "./ws2812scratch/static/js/main.b3c5e0fa.chunk.js.map",
+    "runtime-main.js": "./ws2812scratch/static/js/runtime-main.7cad19da.js",
+    "runtime-main.js.map": "./ws2812scratch/static/js/runtime-main.7cad19da.js.map",
+    "static/js/2.16484fd6.chunk.js": "./ws2812scratch/static/js/2.16484fd6.chunk.js",
+    "static/js/2.16484fd6.chunk.js.map": "./ws2812scratch/static/js/2.16484fd6.chunk.js.map",
+    "index.html": "./ws2812scratch/index.html",
+    "precache-manifest.923d03b522e636e60d652e094fb20138.js": "./ws2812scratch/precache-manifest.923d03b522e636e60d652e094fb20138.js",
+    "service-worker.js": "./ws2812scratch/service-worker.js",
+    "static/css/main.f1a079f4.chunk.css.map": "./ws2812scratch/static/css/main.f1a079f4.chunk.css.map",
+    "static/js/2.16484fd6.chunk.js.LICENSE.txt": "./ws2812scratch/static/js/2.16484fd6.chunk.js.LICENSE.txt"
   },
   "entrypoints": [
-    "static/js/runtime-main.54d898d4.js",
-    "static/js/2.07fc9f4e.chunk.js",
+    "static/js/runtime-main.7cad19da.js",
+    "static/js/2.16484fd6.chunk.js",
     "static/css/main.f1a079f4.chunk.css",
-    "static/js/main.be0f5c8c.chunk.js"
+    "static/js/main.b3c5e0fa.chunk.js"
   ]
 }
